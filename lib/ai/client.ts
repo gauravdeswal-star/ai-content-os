@@ -80,6 +80,7 @@ function estimateCost(
 ): number {
   // Approximate pricing per 1K tokens (input/output)
   const pricing: Record<string, [number, number]> = {
+    "inclusionai/ling-3.0-flash:free": [0, 0], // Free!
     "anthropic/claude-sonnet-5": [0.003, 0.015],
     "anthropic/claude-haiku-latest": [0.0008, 0.004],
     "google/gemini-3.5-flash": [0.00015, 0.0006],

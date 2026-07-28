@@ -30,27 +30,26 @@ export interface ModelConfig {
 
 /**
  * Default model configuration.
- * All models use Google Gemini 3.6 Flash — near-free and high quality.
- * Cost: ~$0.00015 per 1K input tokens, ~$0.0006 per 1K output tokens
- * A typical script generation costs ~$0.001-0.003.
+ * All models use inclusionai/ling-3.0-flash:free — completely FREE on OpenRouter!
+ * No cost per generation. Rate-limited but perfect for prototyping and personal use.
  *
  * Override any model via environment variables for production.
  */
 export const defaultModels: ModelConfig = {
-  script: (process.env.MODEL_SCRIPT as string) || "google/gemini-3.6-flash",
+  script: (process.env.MODEL_SCRIPT as string) || "inclusionai/ling-3.0-flash:free",
   imagePrompt:
-    (process.env.MODEL_IMAGE_PROMPT as string) || "google/gemini-3.6-flash",
+    (process.env.MODEL_IMAGE_PROMPT as string) || "inclusionai/ling-3.0-flash:free",
   carousel:
-    (process.env.MODEL_CAROUSEL as string) || "google/gemini-3.6-flash",
-  caption: (process.env.MODEL_CAPTION as string) || "google/gemini-3.6-flash",
+    (process.env.MODEL_CAROUSEL as string) || "inclusionai/ling-3.0-flash:free",
+  caption: (process.env.MODEL_CAPTION as string) || "inclusionai/ling-3.0-flash:free",
   hashtags:
-    (process.env.MODEL_HASHTAGS as string) || "google/gemini-3.6-flash",
-  video: (process.env.MODEL_VIDEO as string) || "google/gemini-3.6-flash",
-  voice: (process.env.MODEL_VOICE as string) || "google/gemini-3.6-flash",
-  rewrite: (process.env.MODEL_REWRITE as string) || "google/gemini-3.6-flash",
+    (process.env.MODEL_HASHTAGS as string) || "inclusionai/ling-3.0-flash:free",
+  video: (process.env.MODEL_VIDEO as string) || "inclusionai/ling-3.0-flash:free",
+  voice: (process.env.MODEL_VOICE as string) || "inclusionai/ling-3.0-flash:free",
+  rewrite: (process.env.MODEL_REWRITE as string) || "inclusionai/ling-3.0-flash:free",
   summarize:
-    (process.env.MODEL_SUMMARIZE as string) || "google/gemini-3.6-flash",
-  json: (process.env.MODEL_JSON as string) || "google/gemini-3.6-flash",
+    (process.env.MODEL_SUMMARIZE as string) || "inclusionai/ling-3.0-flash:free",
+  json: (process.env.MODEL_JSON as string) || "inclusionai/ling-3.0-flash:free",
 };
 
 /**
