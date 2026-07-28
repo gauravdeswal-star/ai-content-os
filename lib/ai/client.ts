@@ -80,10 +80,10 @@ function estimateCost(
 ): number {
   // Approximate pricing per 1K tokens (input/output)
   const pricing: Record<string, [number, number]> = {
-    "anthropic/claude-sonnet": [0.003, 0.015],
-    "anthropic/claude-3.5-haiku": [0.0008, 0.004],
-    "google/gemini-2.5-flash": [0.00015, 0.0006],
-    "google/gemini-2.5-pro": [0.00125, 0.005],
+    "anthropic/claude-sonnet-5": [0.003, 0.015],
+    "anthropic/claude-haiku-latest": [0.0008, 0.004],
+    "google/gemini-3.5-flash": [0.00015, 0.0006],
+    "google/gemini-3.6-flash": [0.00015, 0.0006],
     "deepseek/deepseek-chat": [0.00027, 0.0011],
     "qwen/qwen-2.5-72b": [0.0009, 0.0009],
     "openai/gpt-4o": [0.0025, 0.01],
@@ -113,7 +113,7 @@ function estimateCost(
  * @example
  * ```ts
  * const response = await generateText("Write a script about AI", {
- *   model: "anthropic/claude-sonnet",
+ *   model: "anthropic/claude-sonnet-5",
  *   temperature: 0.8,
  * });
  * console.log(response.content);

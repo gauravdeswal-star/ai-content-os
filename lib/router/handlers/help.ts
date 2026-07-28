@@ -61,10 +61,15 @@ export async function helpHandler(
     "",
     "<i>Use /help &lt;command&gt; for detailed usage of a specific command.</i>",
     "",
-    "💡 <b>Pro tip:</b> Send structured commands using the format:",
-    "<code>/command",
-    "Key: Value",
-    "Key2: Value2</code>",
+    "💡 <b>Pro tip:</b> You can use ANY of these formats:",
+    "",
+    "1️⃣ <b>Single line</b> (easiest!):",
+    "<code>/script AI Content OS</code>",
+    "",
+    "2️⃣ <b>Key: Value</b> (multi line with Shift+Enter):",
+    "<code>/script",
+    "Topic: AI Content OS",
+    "Platform: Instagram</code>",
   ].join("\n");
 
   return {

@@ -28,7 +28,7 @@ export async function scriptHandler(
       error: {
         code: "MISSING_TOPIC",
         message:
-          "Topic is required. Use:\n/script\nTopic: Your topic here\nPlatform: Instagram",
+          "I need a topic! Try one of these formats:\n\n📱 Single line:\n/script AI Content OS\n\n📝 Multi line (Shift+Enter for new line):\n/script\nTopic: AI Content OS\nPlatform: Instagram\n\nJust type /script followed by your topic!",
       },
     };
   }
