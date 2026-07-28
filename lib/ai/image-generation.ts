@@ -1,7 +1,9 @@
 /**
- * Image generation service using OpenRouter's Image API.
- * Generates actual images from text prompts using models like FLUX, DALL-E, Seedream.
- * No additional API key needed — uses existing OPENROUTER_API_KEY.
+ * Image generation service.
+ * Supports OpenRouter Image API and Cloudflare Workers AI (free tier).
+ *
+ * OpenRouter: Uses existing OPENROUTER_API_KEY. Supports FLUX, DALL-E, Seedream.
+ * Cloudflare: Free tier (10,000 neurons/day, no credit card needed). Supports FLUX.1 Schnell.
  */
 
 import axios from "axios";
@@ -11,25 +13,29 @@ import axios from "axios";
 // ============================================================================
 
 export interface ImageGenerationOptions {
-  /** Model slug (e.g., "black-forest-labs/flux.2-pro") */
+  /** Model slug */
   model?: string;
   /** Number of images to generate (1-4) */
   n?: number;
   /** Aspect ratio: "1:1", "16:9", "9:16", "4:3", "3:2", "4:5" */
   aspectRatio?: string;
-  /** Output format: "png", "jpeg", "webp" */
+  /** Output format */
   outputFormat?: "png" | "jpeg" | "webp";
-  /** Resolution tier: "512", "1K", "2K", "4K" */
+  /** Resolution tier */
   resolution?: string;
+  /** Provider: "openrouter" or "cloudflare" */
+  provider?: "openrouter" | "cloudflare";
 }
 
 export interface ImageGenerationResult {
   /** Base64-encoded image data */
   b64Json: string;
-  /** Media type (e.g., "image/png") */
+  /** Media type */
   mediaType: string;
   /** Model used */
   model: string;
+  /** Provider used */
+  provider: string;
   /** Usage and cost info */
   usage: {
     totalTokens: number;
@@ -49,9 +55,96 @@ export const IMAGE_MODELS = {
   gptImage: "openai/gpt-5-image",
   geminiFlash: "google/gemini-2.5-flash-image",
   recraft: "recraft/recraft-v3",
+  /** Cloudflare FLUX model (free tier) */
+  cloudflareFlux: "@cf/black-forest-labs/flux-1-schnell",
 } as const;
 
-// Approximate pricing per image (USD)
+// ============================================================================
+// Cloudflare Workers AI (Free Tier)
+// ============================================================================
+
+/**
+ * Generate an image using Cloudflare Workers AI free tier.
+ * Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars.
+ *
+ * Free tier: 10,000 neurons per day (resets daily, no credit card needed).
+ * Sign up: https://dash.cloudflare.com/sign-up/workers
+ */
+async function generateWithCloudflare(
+  prompt: string,
+  options: ImageGenerationOptions = {},
+): Promise<ImageGenerationResult> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+
+  if (!accountId || !apiToken) {
+    throw new Error(
+      "Cloudflare Workers AI requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. " +
+      "Sign up free at https://dash.cloudflare.com and get your credentials."
+    );
+  }
+
+  const model = "@cf/black-forest-labs/flux-1-schnell";
+  const steps = options.aspectRatio === "1:1" ? 4 : 8;
+
+  try {
+    const response = await axios.post(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
+      {
+        prompt,
+        num_steps: steps,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        responseType: "arraybuffer",
+      },
+    );
+
+    // Cloudflare returns the image as raw binary
+    const imageBuffer = Buffer.from(response.data);
+    const b64Json = imageBuffer.toString("base64");
+
+    return {
+      b64Json,
+      mediaType: "image/png",
+      model,
+      provider: "cloudflare",
+      usage: {
+        totalTokens: 0,
+        cost: 0, // Free tier!
+      },
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      let message = "Cloudflare image generation failed";
+
+      try {
+        const body = JSON.parse(Buffer.from(error.response?.data || "{}").toString());
+        message = body.errors?.[0]?.message || body.error || message;
+      } catch {}
+
+      if (status === 401) {
+        throw new Error("Invalid Cloudflare API token. Check your CLOUDFLARE_API_TOKEN.");
+      }
+      if (status === 429) {
+        throw new Error("Cloudflare rate limit reached (10,000 neurons/day). Try again tomorrow.");
+      }
+
+      throw new Error(`Cloudflare image error (${status}): ${message}`);
+    }
+
+    throw new Error(error instanceof Error ? error.message : "Cloudflare image generation failed");
+  }
+}
+
+// ============================================================================
+// OpenRouter Image API (Paid, but uses existing key)
+// ============================================================================
+
 const MODEL_PRICING: Record<string, number> = {
   "black-forest-labs/flux.2-pro": 0.05,
   "black-forest-labs/flux-dev": 0.025,
@@ -62,35 +155,16 @@ const MODEL_PRICING: Record<string, number> = {
   "recraft/recraft-v3": 0.04,
 };
 
-// ============================================================================
-// Image Generation
-// ============================================================================
-
 /**
- * Generate an image from a text prompt using OpenRouter's Image API.
- *
- * @param prompt - Text description of the image to generate
- * @param options - Generation options (model, aspect ratio, etc.)
- * @returns The generated image data (base64) with metadata
- *
- * @example
- * ```ts
- * const result = await generateImage("A futuristic cityscape at sunset", {
- *   model: IMAGE_MODELS.fluxPro,
- *   aspectRatio: "16:9",
- * });
- * // result.b64Json -> base64 image data
- * ```
+ * Generate an image using OpenRouter's Image API (uses existing OPENROUTER_API_KEY).
  */
-export async function generateImage(
+async function generateWithOpenRouter(
   prompt: string,
   options: ImageGenerationOptions = {},
 ): Promise<ImageGenerationResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new Error(
-      "OPENROUTER_API_KEY is not configured. Set it in your environment variables.",
-    );
+    throw new Error("OPENROUTER_API_KEY is not configured.");
   }
 
   const model = options.model || IMAGE_MODELS.fluxSchnell;
@@ -98,110 +172,100 @@ export async function generateImage(
   const outputFormat = options.outputFormat || "png";
   const n = Math.min(options.n || 1, 4);
 
-  try {
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/images/generate",
-      {
-        model,
-        prompt,
-        n,
-        aspect_ratio: aspectRatio,
-        output_format: outputFormat,
-        ...(options.resolution ? { resolution: options.resolution } : {}),
+  const response = await axios.post(
+    "https://openrouter.ai/api/v1/images/generate",
+    {
+      model,
+      prompt,
+      n,
+      aspect_ratio: aspectRatio,
+      output_format: outputFormat,
+      ...(options.resolution ? { resolution: options.resolution } : {}),
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        "X-Title": "AI Content OS",
       },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-          "X-Title": "AI Content OS",
-        },
-      },
-    );
+    },
+  );
 
-    const data = response.data;
-
-    if (!data.data || !data.data[0]) {
-      throw new Error("No image data returned from OpenRouter");
-    }
-
-    const imageData = data.data[0];
-    const cost = MODEL_PRICING[model] || 0.03;
-
-    return {
-      b64Json: imageData.b64_json,
-      mediaType: imageData.media_type || `image/${outputFormat}`,
-      model: data.model || model,
-      usage: {
-        totalTokens: data.usage?.total_tokens || 0,
-        cost: data.usage?.cost || cost,
-      },
-    };
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      const message = error.response?.data?.error?.message || error.message;
-
-      if (status === 401) {
-        throw new Error(
-          "Invalid OpenRouter API key. Please check your OPENROUTER_API_KEY.",
-        );
-      }
-      if (status === 402) {
-        throw new Error(
-          "Insufficient OpenRouter credits. Please add funds to your account.",
-        );
-      }
-      if (status === 429) {
-        throw new Error(
-          "Rate limited by OpenRouter. Please try again in a moment.",
-        );
-      }
-
-      throw new Error(`Image generation failed (${status}): ${message}`);
-    }
-
-    throw new Error(
-      error instanceof Error
-        ? error.message
-        : "Unknown error during image generation",
-    );
+  const data = response.data;
+  if (!data.data || !data.data[0]) {
+    throw new Error("No image data returned from OpenRouter");
   }
+
+  const imageData = data.data[0];
+  const cost = MODEL_PRICING[model] || 0.03;
+
+  return {
+    b64Json: imageData.b64_json,
+    mediaType: imageData.media_type || `image/${outputFormat}`,
+    model: data.model || model,
+    provider: "openrouter",
+    usage: {
+      totalTokens: data.usage?.total_tokens || 0,
+      cost: data.usage?.cost || cost,
+    },
+  };
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 /**
- * Generate multiple images from a single prompt.
- * Returns up to 4 images.
+ * Generate an image from a text prompt.
+ *
+ * @param prompt - Text description of the image to generate
+ * @param options - Generation options
+ * @returns The generated image data (base64) with metadata
+ *
+ * By default, uses OpenRouter. Set `provider: "cloudflare"` for free generation
+ * (requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars).
+ *
+ * @example
+ * ```ts
+ * // Using OpenRouter (paid, uses existing API key)
+ * const result = await generateImage("A futuristic cityscape");
+ *
+ * // Using Cloudflare (free, needs separate signup)
+ * const result = await generateImage("A futuristic cityscape", {
+ *   provider: "cloudflare"
+ * });
+ * ```
  */
-export async function generateImages(
+export async function generateImage(
   prompt: string,
-  count: number = 2,
-  options: Omit<ImageGenerationOptions, "n"> = {},
-): Promise<ImageGenerationResult[]> {
-  const result = await generateImage(prompt, { ...options, n: count });
-  // If count is 1, just return one result
-  if (count <= 1) return [result];
-  return [result];
+  options: ImageGenerationOptions = {},
+): Promise<ImageGenerationResult> {
+  const provider = options.provider || "openrouter";
+
+  if (provider === "cloudflare") {
+    return generateWithCloudflare(prompt, options);
+  }
+
+  return generateWithOpenRouter(prompt, options);
 }
 
 /**
- * Check which image models are available via OpenRouter.
+ * Get info about available image generation options.
  */
-export async function getAvailableImageModels(): Promise<
-  { id: string; name: string; pricing: Record<string, number> }[]
-> {
-  try {
-    const response = await axios.get(
-      "https://openrouter.ai/api/v1/images/models",
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-    return response.data?.data || [];
-  } catch {
-    return [];
-  }
+export function getImageProviders(): { id: string; name: string; free: boolean; setup: string }[] {
+  return [
+    {
+      id: "openrouter",
+      name: "OpenRouter (FLUX, DALL-E, etc.)",
+      free: false,
+      setup: "Already configured with OPENROUTER_API_KEY",
+    },
+    {
+      id: "cloudflare",
+      name: "Cloudflare Workers AI (FLUX.1 Schnell)",
+      free: true,
+      setup: "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars",
+    },
+  ];
 }

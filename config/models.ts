@@ -30,24 +30,27 @@ export interface ModelConfig {
 
 /**
  * Default model configuration.
- * Uses Claude Sonnet 5 for complex writing tasks and Gemini 3.5 Flash for lighter tasks.
- * Override via environment variables for production.
+ * All models use Google Gemini 3.6 Flash — near-free and high quality.
+ * Cost: ~$0.00015 per 1K input tokens, ~$0.0006 per 1K output tokens
+ * A typical script generation costs ~$0.001-0.003.
+ *
+ * Override any model via environment variables for production.
  */
 export const defaultModels: ModelConfig = {
-  script: (process.env.MODEL_SCRIPT as string) || "anthropic/claude-sonnet-5",
+  script: (process.env.MODEL_SCRIPT as string) || "google/gemini-3.6-flash",
   imagePrompt:
-    (process.env.MODEL_IMAGE_PROMPT as string) || "google/gemini-3.5-flash",
+    (process.env.MODEL_IMAGE_PROMPT as string) || "google/gemini-3.6-flash",
   carousel:
-    (process.env.MODEL_CAROUSEL as string) || "anthropic/claude-sonnet-5",
-  caption: (process.env.MODEL_CAPTION as string) || "anthropic/claude-sonnet-5",
+    (process.env.MODEL_CAROUSEL as string) || "google/gemini-3.6-flash",
+  caption: (process.env.MODEL_CAPTION as string) || "google/gemini-3.6-flash",
   hashtags:
-    (process.env.MODEL_HASHTAGS as string) || "google/gemini-3.5-flash",
-  video: (process.env.MODEL_VIDEO as string) || "google/gemini-3.5-flash",
-  voice: (process.env.MODEL_VOICE as string) || "anthropic/claude-sonnet-5",
-  rewrite: (process.env.MODEL_REWRITE as string) || "anthropic/claude-sonnet-5",
+    (process.env.MODEL_HASHTAGS as string) || "google/gemini-3.6-flash",
+  video: (process.env.MODEL_VIDEO as string) || "google/gemini-3.6-flash",
+  voice: (process.env.MODEL_VOICE as string) || "google/gemini-3.6-flash",
+  rewrite: (process.env.MODEL_REWRITE as string) || "google/gemini-3.6-flash",
   summarize:
-    (process.env.MODEL_SUMMARIZE as string) || "google/gemini-3.5-flash",
-  json: (process.env.MODEL_JSON as string) || "google/gemini-3.5-flash",
+    (process.env.MODEL_SUMMARIZE as string) || "google/gemini-3.6-flash",
+  json: (process.env.MODEL_JSON as string) || "google/gemini-3.6-flash",
 };
 
 /**
