@@ -66,12 +66,13 @@ export async function POST(
     // Process the update
     const result = await processUpdate(parseResult.data);
 
-    return NextResponse.json(result, {
-      status: result.success ? 200 : 500,
-    });
+    // Always return 200 OK to Telegram, even on errors.
+    // Telegram will retry non-200 responses indefinitely, causing spam.
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
+    // Always return 200 to prevent Telegram retries
     return NextResponse.json(
       {
         success: false,
@@ -79,7 +80,7 @@ export async function POST(
         data: null,
         error: { code: "INTERNAL_ERROR", message },
       },
-      { status: 500 },
+      { status: 200 },
     );
   }
 }

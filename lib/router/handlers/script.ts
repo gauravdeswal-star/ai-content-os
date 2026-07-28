@@ -42,7 +42,9 @@ export async function scriptHandler(
   const startTime = Date.now();
 
   // Generate the script using AI
-  const response = await generateText(
+  let response;
+  try {
+    response = await generateText(
     buildScriptPrompt({
       topic,
       platform,
@@ -56,6 +58,15 @@ export async function scriptHandler(
       systemPrompt: getScriptSystemPrompt(),
     },
   );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "AI generation failed";
+    return {
+      success: false,
+      message: `AI generation error: ${errorMessage}`,
+      data: null,
+      error: { code: "AI_ERROR", message: errorMessage },
+    };
+  }
 
   const executionTime = Date.now() - startTime;
 
