@@ -2,8 +2,12 @@
  * Video generation API route.
  * POST /api/video - Generate video prompts AND/OR actual videos.
  *
- * Mode: "prompt" (default) - Generates a detailed video production brief
- * Mode: "generate" - Generates an actual video using Runway
+ * Supports two providers:
+ * - provider: "runway" (default, paid) — Requires RUNWAY_API_KEY
+ * - provider: "huggingface" (free tier) — Requires HUGGINGFACE_API_KEY
+ *
+ * Mode: "prompt" (default) - Generates a detailed video production brief (FREE)
+ * Mode: "generate" - Generates an actual video using the chosen provider
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -42,13 +46,14 @@ export async function POST(
     const params = parseResult.data;
     const mode = body.mode || "prompt";
     const action = body.action || "generate";
+    const provider = body.provider || "runway"; // "runway" | "huggingface"
 
-    // ----- MODE: GENERATE (actual video via Runway) -----
+    // ----- MODE: GENERATE (actual video) -----
     if (mode === "generate") {
       try {
         // If checking status of an existing task
         if (action === "status" && body.taskId) {
-          const status = await getVideoStatus(body.taskId);
+          const status = await getVideoStatus(body.taskId, provider);
 
           const statusMessages: Record<string, string> = {
             pending: "⏳ Your video is queued for generation...",
@@ -78,6 +83,7 @@ export async function POST(
         // Generate a new video
         const result = await generateVideo(params.topic, {
           duration: params.duration,
+          provider,
           aspectRatio:
             params.platform === "youtube"
               ? "16:9"
@@ -90,7 +96,9 @@ export async function POST(
           success: true,
           message:
             result.status === "completed"
-              ? "✅ Video generated successfully!"
+              ? provider === "huggingface"
+                ? "✅ Free video generated successfully via Hugging Face!"
+                : "✅ Video generated successfully!"
               : "🎬 Video generation started. Use action=status with the taskId to check progress.",
           data: {
             mode: "generate",
@@ -101,6 +109,7 @@ export async function POST(
             topic: params.topic,
             duration: params.duration || 60,
             platform: params.platform || "",
+            provider,
             cost: result.cost,
           },
           error: null,
@@ -111,17 +120,47 @@ export async function POST(
             ? genError.message
             : "Video generation failed";
 
-        // Provide helpful message if RUNWAY_API_KEY is missing
+        // Helpful error messages based on which provider is missing
         if (message.includes("RUNWAY_API_KEY")) {
           return NextResponse.json({
             success: false,
             message:
-              "Video generation requires a Runway API key.\n\n" +
-              "Set RUNWAY_API_KEY in your environment variables.\n" +
-              "Get a key at: https://runwayml.com\n\n" +
-              "In the meantime, use mode=\"prompt\" to generate video production briefs instead.",
+              "⚠️ Runway API key not configured.\n\n" +
+              "Options:\n" +
+              "1. Set RUNWAY_API_KEY for paid Runway video generation\n" +
+              "2. Use free Hugging Face instead:\n" +
+              '   /video\n   Topic: ...\n   Mode: generate\n   Provider: huggingface\n\n' +
+              "3. Use free text prompts:\n" +
+              '   /video\n   Topic: ...\n   Mode: prompt',
             data: null,
             error: { code: "CONFIG_ERROR", message },
+          });
+        }
+
+        if (message.includes("HUGGINGFACE_API_KEY")) {
+          return NextResponse.json({
+            success: false,
+            message:
+              "⚠️ Hugging Face API key not configured.\n\n" +
+              "To use free video generation:\n" +
+              "1. Sign up free at: https://huggingface.co/join (no credit card!)\n" +
+              "2. Get API token: https://huggingface.co/settings/tokens\n" +
+              "3. Add HUGGINGFACE_API_KEY to your env variables\n\n" +
+              "Or use mode=\"prompt\" for free text briefs instead.",
+            data: null,
+            error: { code: "CONFIG_ERROR", message },
+          });
+        }
+
+        if (message.includes("rate limit") || message.includes("429")) {
+          return NextResponse.json({
+            success: false,
+            message:
+              "⚠️ Video generation rate limited.\n\n" +
+              "Hugging Face free tier: $0.10/month credits.\n" +
+              "Wait a bit or try again later.",
+            data: null,
+            error: { code: "RATE_LIMITED", message },
           });
         }
 
