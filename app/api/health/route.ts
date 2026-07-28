@@ -17,6 +17,7 @@ export async function GET(): Promise<NextResponse<ApiResponse>> {
   const healthData = {
     status: "healthy",
     version: "1.0.0",
+    model: "inclusionai/ling-3.0-flash:free", // FREE model! ✅
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
