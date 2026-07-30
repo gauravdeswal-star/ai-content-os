@@ -81,10 +81,8 @@ export async function sendPhoto(
       formData.append("parse_mode", "HTML");
     }
 
-    // Let axios auto-detect the multipart boundary
-    await axios.post(`${getApiUrl()}/sendPhoto`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    // Let axios auto-detect the multipart boundary — do NOT manually set Content-Type
+    await axios.post(`${getApiUrl()}/sendPhoto`, formData);
   } catch (error) {
     console.error("[Telegram] Failed to send photo:", error);
     // Fallback: send a message with a data URI the user can use
