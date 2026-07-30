@@ -7,7 +7,7 @@ import type { TelegramUpdate } from "@/lib/validators";
 import type { ParsedCommand, ApiResponse, CommandName } from "@/types";
 import { parseCommand } from "@/lib/parser/command-parser";
 import { router } from "@/lib/router/command-router";
-import { sendMessage, sendChatAction, sendCommandResponse } from "@/lib/telegram/bot";
+import { sendMessage, sendPhoto, sendChatAction, sendCommandResponse } from "@/lib/telegram/bot";
 import { logger } from "@/lib/logger";
 import { helpHandler, startHandler } from "@/lib/router/handlers/help";
 import { scriptHandler } from "@/lib/router/handlers/script";
@@ -134,7 +134,21 @@ export async function processUpdate(
     const response = await router.execute(parsedCommand);
 
     // Send the response back to Telegram
-    await sendCommandResponse(chatId, response);
+    // Check if response contains image data — if so, send as a photo
+    const data = response.data as Record<string, unknown> | null;
+    if (
+      response.success &&
+      data?.b64Json &&
+      typeof data.b64Json === "string" &&
+      data?.mode === "generate"
+    ) {
+      const mediaType = (data.mediaType as string) || "image/png";
+      const caption = response.message.substring(0, 200); // Truncate for caption
+      await sendChatAction(chatId, "upload_photo");
+      await sendPhoto(chatId, data.b64Json as string, mediaType, caption);
+    } else {
+      await sendCommandResponse(chatId, response);
+    }
 
     const executionTime = Date.now() - startTime;
     logger.log({

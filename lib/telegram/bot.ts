@@ -56,6 +56,47 @@ export async function sendMessage(
 }
 
 /**
+ * Send a photo to a Telegram chat using base64-encoded image data.
+ *
+ * @param chatId - The Telegram chat ID
+ * @param base64Data - Base64-encoded image data (without data:... prefix)
+ * @param mediaType - The MIME type of the image (e.g., "image/png")
+ * @param caption - Optional caption for the photo
+ */
+export async function sendPhoto(
+  chatId: number | string,
+  base64Data: string,
+  mediaType: string = "image/png",
+  caption?: string,
+): Promise<void> {
+  try {
+    // Convert base64 to a Buffer and send as multipart/form-data
+    const buffer = Buffer.from(base64Data, "base64");
+    const ext = mediaType.split("/")[1] || "png";
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+    formData.append("photo", new Blob([buffer], { type: mediaType }), `image.${ext}`);
+    if (caption) {
+      formData.append("caption", caption);
+      formData.append("parse_mode", "HTML");
+    }
+
+    // Let axios auto-detect the multipart boundary
+    await axios.post(`${getApiUrl()}/sendPhoto`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  } catch (error) {
+    console.error("[Telegram] Failed to send photo:", error);
+    // Fallback: send a message with a data URI the user can use
+    const dataUri = `data:${mediaType};base64,${base64Data}`;
+    await sendMessage(
+      chatId,
+      `❌ Could not send the image directly. You can view it here: <a href="${dataUri}">Open Image</a>`,
+    );
+  }
+}
+
+/**
  * Send a typing action indicator to show the bot is processing.
  */
 export async function sendChatAction(
