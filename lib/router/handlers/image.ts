@@ -78,9 +78,10 @@ export async function imageHandler(
   if (mode === "generate") {
     try {
       const modelMap: Record<string, string> = {
-        flux: IMAGE_MODELS.fluxSchnell,
-        "flux-pro": IMAGE_MODELS.fluxPro,
-        "flux-dev": IMAGE_MODELS.fluxDev,
+        flux: IMAGE_MODELS.flux2Klein,
+        "flux-pro": IMAGE_MODELS.flux2Pro,
+        "flux-flex": IMAGE_MODELS.flux2Flex,
+        "flux-klein": IMAGE_MODELS.flux2Klein,
         seedream: IMAGE_MODELS.seedream,
         gpt: IMAGE_MODELS.gptImage,
         gemini: IMAGE_MODELS.geminiFlash,
@@ -89,7 +90,7 @@ export async function imageHandler(
 
       const selectedModel = imageModel
         ? modelMap[imageModel.toLowerCase()] || imageModel
-        : IMAGE_MODELS.fluxSchnell;
+        : IMAGE_MODELS.flux2Klein;
 
       // Build a detailed prompt for better image generation
       const detailedPrompt = [

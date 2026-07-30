@@ -49,9 +49,10 @@ export interface ImageGenerationResult {
 // ============================================================================
 
 export const IMAGE_MODELS = {
-  fluxPro: "black-forest-labs/flux.2-pro",
-  fluxDev: "black-forest-labs/flux-dev",
-  fluxSchnell: "black-forest-labs/flux-schnell",
+  /** OpenRouter models (via /api/v1/images) */
+  flux2Pro: "black-forest-labs/flux.2-pro",
+  flux2Flex: "black-forest-labs/flux.2-flex",
+  flux2Klein: "black-forest-labs/flux.2-klein-4b",
   seedream: "bytedance-seed/seedream-4.5",
   gptImage: "openai/gpt-5-image",
   geminiFlash: "google/gemini-2.5-flash-image",
@@ -194,8 +195,8 @@ async function generateWithHuggingFace(
 
 const MODEL_PRICING: Record<string, number> = {
   "black-forest-labs/flux.2-pro": 0.05,
-  "black-forest-labs/flux-dev": 0.025,
-  "black-forest-labs/flux-schnell": 0.003,
+  "black-forest-labs/flux.2-flex": 0.06,
+  "black-forest-labs/flux.2-klein-4b": 0.002,
   "bytedance-seed/seedream-4.5": 0.038,
   "openai/gpt-5-image": 0.04,
   "google/gemini-2.5-flash-image": 0.002,
@@ -214,13 +215,13 @@ async function generateWithOpenRouter(
     throw new Error("OPENROUTER_API_KEY is not configured.");
   }
 
-  const model = options.model || IMAGE_MODELS.fluxSchnell;
+  const model = options.model || IMAGE_MODELS.flux2Klein;
   const aspectRatio = options.aspectRatio || "1:1";
   const outputFormat = options.outputFormat || "png";
   const n = Math.min(options.n || 1, 4);
 
   const response = await axios.post(
-    "https://openrouter.ai/api/v1/images/generate",
+    "https://openrouter.ai/api/v1/images",
     {
       model,
       prompt,
@@ -305,9 +306,9 @@ export async function generateImage(
       // Try multiple models in case one is unavailable
       const modelsToTry = [
         options.model,
-        IMAGE_MODELS.fluxPro,
-        IMAGE_MODELS.fluxDev,
-        IMAGE_MODELS.fluxSchnell,
+        IMAGE_MODELS.flux2Klein,
+        IMAGE_MODELS.flux2Flex,
+        IMAGE_MODELS.flux2Pro,
       ].filter(Boolean) as string[];
 
       let lastError: unknown = hfError;

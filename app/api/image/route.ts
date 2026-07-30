@@ -45,7 +45,7 @@ export async function POST(
     // ----- MODE: GENERATE (actual image) -----
     if (mode === "generate") {
       try {
-        const imageModel = body.model || IMAGE_MODELS.fluxSchnell;
+        const imageModel = body.model || IMAGE_MODELS.flux2Klein;
         const provider = body.provider || "huggingface";
 
         const result = await generateImage(params.prompt, {
