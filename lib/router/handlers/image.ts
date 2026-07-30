@@ -63,7 +63,10 @@ export async function imageHandler(
   const negativePrompt = options["negative"] || options["neg"] || options["avoid"];
   const imageModel = options["model"];
   const count = parseInt(options["count"] || options["n"] || "1", 10);
-  const provider = (options["provider"] || options["p"] || "openrouter").toLowerCase();
+  // Default to Cloudflare (free, works) - use openrouter only if explicitly requested
+  const rawProvider = (options["provider"] || options["p"] || "cloudflare").toLowerCase();
+  // Map common variations
+  const provider = rawProvider === "openrouter" || rawProvider === "or" ? "openrouter" : "cloudflare";
 
   const startTime = Date.now();
 

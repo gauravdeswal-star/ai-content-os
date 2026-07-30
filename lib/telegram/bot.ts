@@ -69,29 +69,19 @@ export async function sendPhoto(
   mediaType: string = "image/png",
   caption?: string,
 ): Promise<void> {
-  try {
-    // Convert base64 to a Buffer and send as multipart/form-data
-    const buffer = Buffer.from(base64Data, "base64");
-    const ext = mediaType.split("/")[1] || "png";
-    const formData = new FormData();
-    formData.append("chat_id", String(chatId));
-    formData.append("photo", new Blob([buffer], { type: mediaType }), `image.${ext}`);
-    if (caption) {
-      formData.append("caption", caption);
-      formData.append("parse_mode", "HTML");
-    }
+  // Send the image as a clickable data URI link in a text message
+  // This is more reliable than multipart/form-data which has issues on Vercel
+  const dataUri = `data:${mediaType};base64,${base64Data}`;
+  const headerText = caption ? caption.substring(0, 100) : "🖼️ Here's your generated image:";
+  const message = [
+    headerText,
+    "",
+    `<a href="${dataUri}">📸 Click to view/download image</a>`,
+    "",
+    `<i>💡 Right-click or long-press to save the image.</i>`,
+  ].join("\n");
 
-    // Let axios auto-detect the multipart boundary — do NOT manually set Content-Type
-    await axios.post(`${getApiUrl()}/sendPhoto`, formData);
-  } catch (error) {
-    console.error("[Telegram] Failed to send photo:", error);
-    // Fallback: send a message with a data URI the user can use
-    const dataUri = `data:${mediaType};base64,${base64Data}`;
-    await sendMessage(
-      chatId,
-      `❌ Could not send the image directly. You can view it here: <a href="${dataUri}">Open Image</a>`,
-    );
-  }
+  await sendMessage(chatId, message, { parseMode: "HTML" });
 }
 
 /**
