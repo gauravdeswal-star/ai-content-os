@@ -1,11 +1,10 @@
 /**
  * Image generation service.
- * Supports OpenRouter Image API, Cloudflare Workers AI, and Hugging Face Inference API.
+ * Supports Hugging Face Inference API (free, default) and OpenRouter Image API.
  *
- * OpenRouter: Uses existing OPENROUTER_API_KEY. Supports FLUX, DALL-E, Seedream.
- * Cloudflare: Free tier (10,000 neurons/day, no credit card needed). Supports FLUX.1 Schnell.
- * Hugging Face: Uses existing HUGGINGFACE_API_KEY. Free tier with $0.10 monthly credits.
+ * Hugging Face: Uses HUGGINGFACE_API_KEY. Free tier with $0.10 monthly credits.
  *   Supports FLUX.1-schnell, Stable Diffusion 3.5, and many open-source models.
+ * OpenRouter: Uses OPENROUTER_API_KEY. Supports FLUX, DALL-E, Seedream.
  */
 
 import axios from "axios";
@@ -25,8 +24,8 @@ export interface ImageGenerationOptions {
   outputFormat?: "png" | "jpeg" | "webp";
   /** Resolution tier */
   resolution?: string;
-  /** Provider: "openrouter", "cloudflare", or "huggingface" */
-  provider?: "openrouter" | "cloudflare" | "huggingface";
+  /** Provider: "huggingface" (default, free) or "openrouter" */
+  provider?: "huggingface" | "openrouter";
 }
 
 export interface ImageGenerationResult {
@@ -57,8 +56,6 @@ export const IMAGE_MODELS = {
   gptImage: "openai/gpt-5-image",
   geminiFlash: "google/gemini-2.5-flash-image",
   recraft: "recraft/recraft-v3",
-  /** Cloudflare FLUX model (free tier) */
-  cloudflareFlux: "@cf/black-forest-labs/flux-1-schnell",
   /** Hugging Face models */
   hfFluxSchnell: "black-forest-labs/FLUX.1-schnell",
   hfSd35Large: "stabilityai/stable-diffusion-3.5-large",
@@ -70,14 +67,6 @@ export const IMAGE_MODELS = {
 // ============================================================================
 
 const HF_API_BASE = "https://api-inference.huggingface.co";
-
-/**
- * Get a Hugging Face image generation model for the given options.
- */
-function getHfImageModel(model?: string): string {
-  if (model) return model;
-  return IMAGE_MODELS.hfFluxSchnell;
-}
 
 /**
  * Generate an image using Hugging Face Inference API free tier.
@@ -101,7 +90,7 @@ async function generateWithHuggingFace(
     );
   }
 
-  const model = getHfImageModel(options.model);
+  const model = options.model || IMAGE_MODELS.hfFluxSchnell;
   const hfModel = model.startsWith("black-forest-labs/") || model.startsWith("stabilityai/")
     ? model
     : IMAGE_MODELS.hfFluxSchnell;
@@ -155,7 +144,6 @@ async function generateWithHuggingFace(
     }
 
     const b64Json = imageBuffer.toString("base64");
-    // Determine media type from content-type or default to PNG
     const mediaType = contentType.includes("jpeg") || contentType.includes("jpg")
       ? "image/jpeg"
       : contentType.includes("webp")
@@ -167,10 +155,7 @@ async function generateWithHuggingFace(
       mediaType,
       model: hfModel,
       provider: "huggingface",
-      usage: {
-        totalTokens: 0,
-        cost: 0,
-      },
+      usage: { totalTokens: 0, cost: 0 },
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -188,14 +173,10 @@ async function generateWithHuggingFace(
       }
 
       if (status === 401 || status === 403) {
-        throw new Error(
-          "Invalid Hugging Face API token. Check your HUGGINGFACE_API_KEY.",
-        );
+        throw new Error("Invalid Hugging Face API token. Check your HUGGINGFACE_API_KEY.");
       }
       if (status === 429) {
-        throw new Error(
-          "Hugging Face rate limit reached. Free tier: $0.10/month credits.",
-        );
+        throw new Error("Hugging Face rate limit reached. Free tier: $0.10/month credits.");
       }
 
       throw new Error(`Hugging Face error (${status}): ${errorMsg}`);
@@ -208,76 +189,7 @@ async function generateWithHuggingFace(
 }
 
 // ============================================================================
-// Cloudflare Workers AI (Free Tier)
-// ============================================================================
-
-/**
- * Generate an image using Cloudflare Workers AI free tier.
- * Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars.
- */
-async function generateWithCloudflare(
-  prompt: string,
-  options: ImageGenerationOptions = {},
-): Promise<ImageGenerationResult> {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-
-  if (!accountId || !apiToken) {
-    throw new Error(
-      "Cloudflare Workers AI requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
-    );
-  }
-
-  const model = "@cf/black-forest-labs/flux-1-schnell";
-  const steps = options.aspectRatio === "1:1" ? 4 : 8;
-
-  const response = await axios.post(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
-    { prompt, num_steps: steps },
-    {
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      validateStatus: (status) => status < 500,
-      responseType: "arraybuffer",
-    },
-  );
-
-  const contentType = String(response.headers["content-type"] || "");
-
-  if (contentType.includes("application/json") || contentType.includes("text/")) {
-    const bodyText = Buffer.from(response.data).toString("utf-8");
-    try {
-      const body = JSON.parse(bodyText);
-      const errorMsg = !body.success
-        ? body.errors?.[0]?.message || body.error || JSON.stringify(body)
-        : body.result?.errors?.[0]?.message || JSON.stringify(body).substring(0, 300);
-      throw new Error(`Cloudflare API error: ${errorMsg}`);
-    } catch (parseErr) {
-      if (parseErr instanceof Error && parseErr.message.startsWith("Cloudflare API error")) {
-        throw parseErr;
-      }
-      throw new Error(`Cloudflare API error: ${bodyText.substring(0, 300)}`);
-    }
-  }
-
-  const imageBuffer = Buffer.from(response.data);
-  if (imageBuffer.length < 100) {
-    throw new Error("Cloudflare returned an image that appears too small to be valid");
-  }
-
-  return {
-    b64Json: imageBuffer.toString("base64"),
-    mediaType: "image/png",
-    model,
-    provider: "cloudflare",
-    usage: { totalTokens: 0, cost: 0 },
-  };
-}
-
-// ============================================================================
-// OpenRouter Image API (Paid, but uses existing key)
+// OpenRouter Image API
 // ============================================================================
 
 const MODEL_PRICING: Record<string, number> = {
@@ -291,7 +203,7 @@ const MODEL_PRICING: Record<string, number> = {
 };
 
 /**
- * Generate an image using OpenRouter's Image API (uses existing OPENROUTER_API_KEY).
+ * Generate an image using OpenRouter's Image API (uses OPENROUTER_API_KEY).
  */
 async function generateWithOpenRouter(
   prompt: string,
@@ -358,15 +270,15 @@ async function generateWithOpenRouter(
  * @param options - Generation options
  * @returns The generated image data (base64) with metadata
  *
- * By default, uses Hugging Face (free tier via HUGGINGFACE_API_KEY).
- * Set `provider: "openrouter"` for OpenRouter, or `provider: "cloudflare"` for Cloudflare.
+ * By default, uses Hugging Face (free, requires HUGGINGFACE_API_KEY).
+ * Set `provider: "openrouter"` to use OpenRouter instead.
  *
  * @example
  * ```ts
- * // Using Hugging Face (free, uses HUGGINGFACE_API_KEY)
+ * // Using Hugging Face (free, requires HUGGINGFACE_API_KEY)
  * const result = await generateImage("A futuristic cityscape");
  *
- * // Using OpenRouter (uses OPENROUTER_API_KEY)
+ * // Using OpenRouter (requires OPENROUTER_API_KEY)
  * const result = await generateImage("A futuristic cityscape", {
  *   provider: "openrouter"
  * });
@@ -378,14 +290,28 @@ export async function generateImage(
 ): Promise<ImageGenerationResult> {
   const provider = options.provider || "huggingface";
 
-  if (provider === "cloudflare") {
-    return generateWithCloudflare(prompt, options);
-  }
   if (provider === "openrouter") {
     return generateWithOpenRouter(prompt, options);
   }
 
-  return generateWithHuggingFace(prompt, options);
+  // Default: try Hugging Face first, fall back to OpenRouter if it fails
+  try {
+    return await generateWithHuggingFace(prompt, options);
+  } catch (hfError) {
+    console.warn("[Image] Hugging Face failed, falling back to OpenRouter:", hfError);
+
+    // Only fallback if OpenRouter is configured
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        return await generateWithOpenRouter(prompt, { ...options, model: options.model || IMAGE_MODELS.fluxSchnell });
+      } catch (orError) {
+        // Both failed — throw the original HF error for clarity
+        throw hfError;
+      }
+    }
+
+    throw hfError;
+  }
 }
 
 /**
@@ -401,15 +327,9 @@ export function getImageProviders(): { id: string; name: string; free: boolean; 
     },
     {
       id: "openrouter",
-      name: "OpenRouter (FLUX, DALL-E, etc.)",
+      name: "OpenRouter (FLUX, DALL-E, Seedream)",
       free: false,
       setup: "Already configured with OPENROUTER_API_KEY",
-    },
-    {
-      id: "cloudflare",
-      name: "Cloudflare Workers AI (FLUX.1 Schnell)",
-      free: true,
-      setup: "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars",
     },
   ];
 }

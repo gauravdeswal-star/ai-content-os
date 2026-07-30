@@ -64,15 +64,13 @@ export async function imageHandler(
   const imageModel = options["model"];
   const count = parseInt(options["count"] || options["n"] || "1", 10);
   // Default to Hugging Face (free tier via HUGGINGFACE_API_KEY)
-  // Use openrouter or cloudflare only if explicitly requested
+  // Use openrouter only if explicitly requested
   const rawProvider = (options["provider"] || options["p"] || "huggingface").toLowerCase();
   // Map common variations
   const provider =
     rawProvider === "openrouter" || rawProvider === "or"
       ? "openrouter"
-      : rawProvider === "cloudflare" || rawProvider === "cf"
-        ? "cloudflare"
-        : "huggingface";
+      : "huggingface";
 
   const startTime = Date.now();
 
@@ -106,7 +104,7 @@ export async function imageHandler(
         model: selectedModel,
         aspectRatio,
         n: Math.min(count, 4),
-        provider: provider as "openrouter" | "cloudflare",
+        provider: provider as "huggingface" | "openrouter",
       });
 
       const executionTime = Date.now() - startTime;
