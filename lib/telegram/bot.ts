@@ -60,8 +60,9 @@ export async function sendMessage(
  *
  * Strategy (tried in order):
  *   1. Upload the image to Cloudinary (if configured) and send the URL
- *   2. Fall back to multipart/form-data upload directly to Telegram
- *   3. Fall back to a text-only message
+ *   2. Upload to S3-compatible storage (if configured) and send the URL
+ *   3. Fall back to multipart/form-data upload directly to Telegram
+ *   4. Fall back to a text-only message
  *
  * @param chatId - The Telegram chat ID
  * @param base64Data - Base64-encoded image data (without data: prefix)
@@ -92,10 +93,34 @@ export async function sendPhoto(
       return;
     }
   } catch (cloudinaryError) {
-    console.warn("[Telegram] Cloudinary upload failed, trying multipart:", cloudinaryError);
+    console.warn("[Telegram] Cloudinary upload failed, trying S3:", cloudinaryError);
   }
 
-  // ─── Step 2: Try multipart/form-data upload directly to Telegram ───
+  // ─── Step 2: Try S3-compatible storage (Hugging Face) ───
+  try {
+    const { isS3Configured, uploadBase64Image: uploadToS3 } = await import("@/lib/storage/s3");
+
+    if (isS3Configured()) {
+      const result = await uploadToS3(base64Data, {
+        folder: "telegram-images",
+        contentType: mediaType,
+      });
+
+      await axios.post(`${getApiUrl()}/sendPhoto`, {
+        chat_id: chatId,
+        photo: result.url,
+        caption: caption ? caption.substring(0, 1024) : undefined,
+        parse_mode: "HTML",
+      });
+
+      console.log("[Telegram] Photo sent via S3 URL:", result.url);
+      return;
+    }
+  } catch (s3Error) {
+    console.warn("[Telegram] S3 upload failed, trying multipart:", s3Error);
+  }
+
+  // ─── Step 3: Try multipart/form-data upload directly to Telegram ───
   try {
     const imageBuffer = Buffer.from(base64Data, "base64");
     const extension = mediaType.split("/")[1] || "png";
@@ -122,7 +147,7 @@ export async function sendPhoto(
     console.error("[Telegram] Multipart upload also failed:", multipartError);
   }
 
-  // ─── Step 3: Fallback — send a text message explaining the image ───
+  // ─── Step 4: Fallback — send a text message explaining the image ───
   try {
     const summary = caption
       ? caption.substring(0, 200)
