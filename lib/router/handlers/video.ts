@@ -2,7 +2,7 @@
  * Handler for the /video command.
  * Supports two modes:
  *   - "prompt" (default): Generates detailed video production briefs
- *   - "generate": Generates actual videos using Runway API
+ *   - "generate": Generates actual videos using Hugging Face (free) or Runway (paid)
  */
 
 import type { ParsedCommand, ApiResponse } from "@/types";
@@ -111,30 +111,31 @@ export async function videoHandler(
     }
   }
 
-  // ----- MODE: GENERATE (actual video via Runway) -----
+  // ----- MODE: GENERATE (actual video) -----
   if (mode === "generate") {
-    // Check if we have the Runway API key configured
-    if (!process.env.RUNWAY_API_KEY) {
+    // Determine provider: default to huggingface, allow explicit override
+    const rawProvider = (options["provider"] || options["p"] || "huggingface").toLowerCase();
+    const provider = rawProvider === "runway" || rawProvider === "rw" ? "runway" : "huggingface";
+
+    // Check Runway API key if provider is runway
+    if (provider === "runway" && !process.env.RUNWAY_API_KEY) {
       return {
         success: false,
         message:
-          "⚠️ Video generation requires a Runway API key.\n\n" +
-          "Set <code>RUNWAY_API_KEY</code> in your environment variables.\n" +
-          "Get a key at: https://runwayml.com\n\n" +
-          "In the meantime, use <b>Mode: prompt</b> to generate video production briefs:\n" +
-          "/video\nTopic: Product launch\nMode: prompt",
+          "⚠️ Runway video generation requires a Runway API key.\n\n" +
+          "Switch to the default Hugging Face provider (free, uses HUGGINGFACE_API_KEY):\n" +
+          "/video\nTopic: Your topic\nMode: generate\n\n" +
+          "Or set <code>RUNWAY_API_KEY</code> in your environment variables.",
         data: null,
-        error: {
-          code: "CONFIG_ERROR",
-          message:
-            "RUNWAY_API_KEY is not configured. Set it to enable video generation.",
-        },
+        error: { code: "CONFIG_ERROR", message: "RUNWAY_API_KEY is not configured" },
       };
     }
 
     try {
       const result = await generateVideo(topic, {
-        duration: Math.min(duration, 10), // Runway has duration limits
+        provider: provider as "runway" | "huggingface",
+        duration: provider === "runway" ? Math.min(duration, 10) : duration,
+        model: options["model"] || (provider === "huggingface" ? "Wan-AI/Wan2.1-T2V-14B" : undefined),
         aspectRatio:
           platform === "youtube" || platform === "facebook"
             ? "16:9"

@@ -56,10 +56,15 @@ export async function sendMessage(
 }
 
 /**
- * Send a photo to a Telegram chat using base64-encoded image data.
+ * Send a photo to a Telegram chat.
+ *
+ * Strategy (tried in order):
+ *   1. Upload the image to Cloudinary (if configured) and send the URL
+ *   2. Fall back to multipart/form-data upload directly to Telegram
+ *   3. Fall back to a text-only message
  *
  * @param chatId - The Telegram chat ID
- * @param base64Data - Base64-encoded image data (without data:... prefix)
+ * @param base64Data - Base64-encoded image data (without data: prefix)
  * @param mediaType - The MIME type of the image (e.g., "image/png")
  * @param caption - Optional caption for the photo
  */
@@ -69,19 +74,75 @@ export async function sendPhoto(
   mediaType: string = "image/png",
   caption?: string,
 ): Promise<void> {
-  // Send the image as a clickable data URI link in a text message
-  // This is more reliable than multipart/form-data which has issues on Vercel
-  const dataUri = `data:${mediaType};base64,${base64Data}`;
-  const headerText = caption ? caption.substring(0, 100) : "🖼️ Here's your generated image:";
-  const message = [
-    headerText,
-    "",
-    `<a href="${dataUri}">📸 Click to view/download image</a>`,
-    "",
-    `<i>💡 Right-click or long-press to save the image.</i>`,
-  ].join("\n");
+  // ─── Step 1: Try Cloudinary (uploads image to CDN, sends public URL) ───
+  try {
+    const { isCloudinaryConfigured, uploadImageToUrl } = await import("@/lib/storage/cloudinary");
 
-  await sendMessage(chatId, message, { parseMode: "HTML" });
+    if (isCloudinaryConfigured()) {
+      const imageUrl = await uploadImageToUrl(base64Data, "telegram-images");
+
+      await axios.post(`${getApiUrl()}/sendPhoto`, {
+        chat_id: chatId,
+        photo: imageUrl,
+        caption: caption ? caption.substring(0, 1024) : undefined,
+        parse_mode: "HTML",
+      });
+
+      console.log("[Telegram] Photo sent via Cloudinary URL");
+      return;
+    }
+  } catch (cloudinaryError) {
+    console.warn("[Telegram] Cloudinary upload failed, trying multipart:", cloudinaryError);
+  }
+
+  // ─── Step 2: Try multipart/form-data upload directly to Telegram ───
+  try {
+    const imageBuffer = Buffer.from(base64Data, "base64");
+    const extension = mediaType.split("/")[1] || "png";
+    const filename = `image.${extension}`;
+
+    const FormData = (await import("form-data")).default;
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("photo", imageBuffer, { filename, contentType: mediaType });
+
+    if (caption) {
+      form.append("caption", caption.substring(0, 1024));
+    }
+
+    await axios.post(`${getApiUrl()}/sendPhoto`, form, {
+      headers: form.getHeaders(),
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    console.log("[Telegram] Photo sent via multipart upload");
+    return;
+  } catch (multipartError) {
+    console.error("[Telegram] Multipart upload also failed:", multipartError);
+  }
+
+  // ─── Step 3: Fallback — send a text message explaining the image ───
+  try {
+    const summary = caption
+      ? caption.substring(0, 200)
+      : "🖼️ Image was generated successfully but could not be sent as a photo.";
+
+    const fallbackMsg = [
+      summary,
+      "",
+      "ℹ️ The image data is available through the API.",
+      "To get it working in Telegram automatically:",
+      "• Set up <b>Cloudinary</b> env vars (CLOUDINARY_CLOUD_NAME, etc.)",
+      "• The bot will upload images there and send the URL into chat",
+      "",
+      "<i>💡 The base64 image data is in the API response.</i>",
+    ].join("\n");
+
+    await sendMessage(chatId, fallbackMsg, { parseMode: "HTML" });
+  } catch (fallbackError) {
+    console.error("[Telegram] Fallback send also failed:", fallbackError);
+  }
 }
 
 /**

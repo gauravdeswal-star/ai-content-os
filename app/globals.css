@@ -24,44 +24,28 @@
   --input: oklch(0.88 0.01 260);
   --ring: oklch(0.45 0.15 260);
   --radius: 0.625rem;
-  --sidebar-background: oklch(0.98 0 0);
-  --sidebar-foreground: oklch(0.13 0.02 260);
-  --sidebar-primary: oklch(0.45 0.15 260);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.92 0.01 260);
-  --sidebar-accent-foreground: oklch(0.13 0.02 260);
-  --sidebar-border: oklch(0.88 0.01 260);
-  --sidebar-ring: oklch(0.45 0.15 260);
 }
 
 .dark {
-  --background: oklch(0.13 0.02 260);
+  --background: oklch(0.09 0.03 260);
   --foreground: oklch(0.95 0.01 260);
-  --card: oklch(0.16 0.02 260);
+  --card: oklch(0.13 0.02 260);
   --card-foreground: oklch(0.95 0.01 260);
-  --popover: oklch(0.16 0.02 260);
+  --popover: oklch(0.13 0.02 260);
   --popover-foreground: oklch(0.95 0.01 260);
   --primary: oklch(0.6 0.18 260);
-  --primary-foreground: oklch(0.13 0.02 260);
+  --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.2 0.02 260);
   --secondary-foreground: oklch(0.95 0.01 260);
-  --muted: oklch(0.2 0.02 260);
-  --muted-foreground: oklch(0.65 0.02 260);
+  --muted: oklch(0.18 0.02 260);
+  --muted-foreground: oklch(0.6 0.02 260);
   --accent: oklch(0.55 0.18 280);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.22 0.02 260);
-  --input: oklch(0.22 0.02 260);
+  --border: oklch(0.2 0.02 260);
+  --input: oklch(0.2 0.02 260);
   --ring: oklch(0.6 0.18 260);
-  --sidebar-background: oklch(0.13 0.02 260);
-  --sidebar-foreground: oklch(0.95 0.01 260);
-  --sidebar-primary: oklch(0.6 0.18 260);
-  --sidebar-primary-foreground: oklch(0.13 0.02 260);
-  --sidebar-accent: oklch(0.2 0.02 260);
-  --sidebar-accent-foreground: oklch(0.95 0.01 260);
-  --sidebar-border: oklch(0.22 0.02 260);
-  --sidebar-ring: oklch(0.6 0.18 260);
 }
 
 @theme inline {
@@ -84,53 +68,115 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-sidebar-background: var(--sidebar-background);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-@keyframes accordion-down {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
+/* ─── Custom Animations ─── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-20px) rotate(1deg); }
+  66% { transform: translateY(10px) rotate(-1deg); }
 }
 
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px oklch(0.6 0.2 260 / 0.15); }
+  50% { box-shadow: 0 0 40px oklch(0.6 0.2 260 / 0.3), 0 0 60px oklch(0.6 0.2 260 / 0.1); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg) translateX(120px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
+}
+
+@keyframes typing {
+  0%, 100% { opacity: 0.3; }
+  20% { opacity: 1; }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
+  
+  html { scroll-behavior: smooth; }
+  
   body {
     @apply bg-background text-foreground;
-    font-feature-settings:
-      "rlig" 1,
-      "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Scroll-triggered reveal via intersection observer */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Gradient text utility */
+  .text-gradient {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass card */
+  .glass {
+    background: oklch(1 0 0 / 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid oklch(1 0 0 / 0.1);
+  }
+  .dark .glass {
+    background: oklch(1 0 0 / 0.03);
+    border: 1px solid oklch(1 0 0 / 0.06);
+  }
+
+  /* Grid pattern background */
+  .grid-bg {
+    background-image: 
+      linear-gradient(oklch(0.6 0.2 260 / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.6 0.2 260 / 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+}
+
+@layer utilities {
+  .animate-float { animation: float 6s ease-in-out infinite; }
+  .animate-pulse-soft { animation: pulse-soft 4s ease-in-out infinite; }
+  .animate-glow { animation: glow 3s ease-in-out infinite; }
+  .animate-slide-up { animation: slide-up 0.7s ease-out forwards; }
+  .animate-fade-in { animation: fade-in 1s ease-out forwards; }
+  .animate-orbit { animation: orbit 8s linear infinite; }
+  .animate-shimmer {
+    background-size: 200% auto;
+    animation: shimmer 3s linear infinite;
   }
 }

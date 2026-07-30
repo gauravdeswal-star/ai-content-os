@@ -73,9 +73,10 @@ export async function POST(
 ): Promise<NextResponse<ApiResponse>> {
   try {
     const body = await request.json().catch(() => ({}));
-    const url = body.url || process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/telegram`
-      : null;
+    const url = body.url
+      || (process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/telegram`
+        : null);
 
     if (!url) {
       return NextResponse.json(

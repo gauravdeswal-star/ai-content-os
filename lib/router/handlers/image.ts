@@ -63,10 +63,16 @@ export async function imageHandler(
   const negativePrompt = options["negative"] || options["neg"] || options["avoid"];
   const imageModel = options["model"];
   const count = parseInt(options["count"] || options["n"] || "1", 10);
-  // Default to Cloudflare (free, works) - use openrouter only if explicitly requested
-  const rawProvider = (options["provider"] || options["p"] || "cloudflare").toLowerCase();
+  // Default to Hugging Face (free tier via HUGGINGFACE_API_KEY)
+  // Use openrouter or cloudflare only if explicitly requested
+  const rawProvider = (options["provider"] || options["p"] || "huggingface").toLowerCase();
   // Map common variations
-  const provider = rawProvider === "openrouter" || rawProvider === "or" ? "openrouter" : "cloudflare";
+  const provider =
+    rawProvider === "openrouter" || rawProvider === "or"
+      ? "openrouter"
+      : rawProvider === "cloudflare" || rawProvider === "cf"
+        ? "cloudflare"
+        : "huggingface";
 
   const startTime = Date.now();
 

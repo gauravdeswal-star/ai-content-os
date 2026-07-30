@@ -323,9 +323,9 @@ async function getRunwayVideoStatus(
  * Generate a video from a text prompt.
  *
  * Supports two providers:
- * - "runway" (default, paid) — Uses Runway ML API. Requires RUNWAY_API_KEY.
- * - "huggingface" (free tier) — Uses Hugging Face Inference API. Requires HUGGINGFACE_API_KEY.
- *   Free tier: $0.10/month credits, no credit card needed.
+ * - "huggingface" (default, free tier) — Uses Hugging Face Inference API.
+ *   Requires HUGGINGFACE_API_KEY. Free tier: $0.10/month credits.
+ * - "runway" (paid) — Uses Runway ML API. Requires RUNWAY_API_KEY.
  *
  * @param prompt - Text description of the video to generate
  * @param options - Generation options (duration, aspect ratio, provider, etc.)
@@ -333,13 +333,12 @@ async function getRunwayVideoStatus(
  *
  * @example
  * ```ts
- * // Using Runway (paid)
- * const result = await generateVideo("A cinematic drone shot of mountains");
+ * // Using Hugging Face (free, default)
+ * const result = await generateVideo("A cat walking on a beach");
  *
- * // Using Hugging Face (free)
- * const result = await generateVideo("A cat walking on a beach", {
- *   provider: "huggingface",
- *   model: "Wan-AI/Wan2.1-T2V-14B",
+ * // Using Runway (paid)
+ * const result = await generateVideo("A cinematic drone shot", {
+ *   provider: "runway",
  * });
  * ```
  */
@@ -347,13 +346,13 @@ export async function generateVideo(
   prompt: string,
   options: VideoGenerationOptions = {},
 ): Promise<VideoGenerationResult> {
-  const provider = options.provider || "runway";
+  const provider = options.provider || "huggingface";
 
-  if (provider === "huggingface") {
-    return generateWithHuggingFace(prompt, options);
+  if (provider === "runway") {
+    return generateWithRunway(prompt, options);
   }
 
-  return generateWithRunway(prompt, options);
+  return generateWithHuggingFace(prompt, options);
 }
 
 /**
