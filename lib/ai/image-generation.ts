@@ -295,40 +295,8 @@ export async function generateImage(
     return generateWithOpenRouter(prompt, options);
   }
 
-  // Default: try Hugging Face first, fall back to OpenRouter if it fails
-  try {
-    return await generateWithHuggingFace(prompt, options);
-  } catch (hfError) {
-    console.warn("[Image] Hugging Face failed, falling back to OpenRouter:", hfError);
-
-    // Only fallback if OpenRouter is configured
-    if (process.env.OPENROUTER_API_KEY) {
-      // Try multiple models in case one is unavailable
-      const modelsToTry = [
-        options.model,
-        IMAGE_MODELS.flux2Klein,
-        IMAGE_MODELS.flux2Flex,
-        IMAGE_MODELS.flux2Pro,
-      ].filter(Boolean) as string[];
-
-      let lastError: unknown = hfError;
-
-      for (const model of modelsToTry) {
-        try {
-          return await generateWithOpenRouter(prompt, { ...options, model });
-        } catch (orError) {
-          lastError = orError;
-          console.warn(`[Image] OpenRouter model ${model} failed:`, orError);
-          // Continue to next model
-        }
-      }
-
-      // All OpenRouter models failed — throw the last error
-      throw lastError;
-    }
-
-    throw hfError;
-  }
+  // Use Hugging Face only (remove OpenRouter fallback)
+  return generateWithHuggingFace(prompt, options);
 }
 
 /**
