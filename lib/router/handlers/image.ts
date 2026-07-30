@@ -21,6 +21,7 @@ import { logger } from "@/lib/logger";
  *   Negative / Neg - Things to avoid
  *   Mode / M      - "prompt" or "generate" (default: prompt)
  *   Model         - Image model (for generate mode): flux, flux-pro, seedream, gpt
+ *   Provider / P  - Image provider: "openrouter" (default) or "cloudflare" (free)
  *   Count / N     - Number of images (for generate mode, 1-4)
  *
  * @example
@@ -29,6 +30,7 @@ import { logger } from "@/lib/logger";
  * Mode: generate
  * Style: Cyberpunk
  * Ratio: 16:9
+ * Provider: cloudflare
  */
 export async function imageHandler(
   command: ParsedCommand,
@@ -61,6 +63,7 @@ export async function imageHandler(
   const negativePrompt = options["negative"] || options["neg"] || options["avoid"];
   const imageModel = options["model"];
   const count = parseInt(options["count"] || options["n"] || "1", 10);
+  const provider = (options["provider"] || options["p"] || "openrouter").toLowerCase();
 
   const startTime = Date.now();
 
@@ -94,6 +97,7 @@ export async function imageHandler(
         model: selectedModel,
         aspectRatio,
         n: Math.min(count, 4),
+        provider: provider as "openrouter" | "cloudflare",
       });
 
       const executionTime = Date.now() - startTime;
