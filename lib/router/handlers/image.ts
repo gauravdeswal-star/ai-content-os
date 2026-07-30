@@ -56,7 +56,7 @@ export async function imageHandler(
     };
   }
 
-  const mode = (options["mode"] || options["m"] || "prompt").toLowerCase();
+  const mode = (options["mode"] || options["m"] || "generate").toLowerCase();
   const style = options["style"] || options["s"];
   const aspectRatio =
     options["ratio"] || options["r"] || options["aspectratio"] || "1:1";

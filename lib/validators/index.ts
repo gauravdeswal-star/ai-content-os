@@ -131,6 +131,7 @@ export const imageSchema = z.object({
   platform: platformSchema.optional(),
   mode: modeSchema.optional().default("prompt"),
   model: z.string().max(100).optional(),
+  provider: z.enum(["huggingface", "openrouter"]).or(z.string()).optional().default("huggingface"),
   count: z.coerce.number().min(1).max(4).optional().default(1),
 });
 

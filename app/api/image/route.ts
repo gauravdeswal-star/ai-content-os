@@ -46,11 +46,13 @@ export async function POST(
     if (mode === "generate") {
       try {
         const imageModel = body.model || IMAGE_MODELS.fluxSchnell;
+        const provider = body.provider || "huggingface";
 
         const result = await generateImage(params.prompt, {
           model: imageModel,
           aspectRatio: params.aspectRatio,
           n: body.count || 1,
+          provider: provider as "huggingface" | "openrouter",
         });
 
         return NextResponse.json({

@@ -302,12 +302,28 @@ export async function generateImage(
 
     // Only fallback if OpenRouter is configured
     if (process.env.OPENROUTER_API_KEY) {
-      try {
-        return await generateWithOpenRouter(prompt, { ...options, model: options.model || IMAGE_MODELS.fluxSchnell });
-      } catch (orError) {
-        // Both failed — throw the original HF error for clarity
-        throw hfError;
+      // Try multiple models in case one is unavailable
+      const modelsToTry = [
+        options.model,
+        IMAGE_MODELS.fluxPro,
+        IMAGE_MODELS.fluxDev,
+        IMAGE_MODELS.fluxSchnell,
+      ].filter(Boolean) as string[];
+
+      let lastError: unknown = hfError;
+
+      for (const model of modelsToTry) {
+        try {
+          return await generateWithOpenRouter(prompt, { ...options, model });
+        } catch (orError) {
+          lastError = orError;
+          console.warn(`[Image] OpenRouter model ${model} failed:`, orError);
+          // Continue to next model
+        }
       }
+
+      // All OpenRouter models failed — throw the last error
+      throw lastError;
     }
 
     throw hfError;
