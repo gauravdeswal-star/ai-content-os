@@ -1,13 +1,15 @@
 /**
  * Image generation service.
- * Supports Hugging Face Inference API (free, default) and OpenRouter Image API.
+ * Supports Hugging Face Inference Providers (free, default) and OpenRouter Image API.
  *
- * Hugging Face: Uses HUGGINGFACE_API_KEY. Free tier with $0.10 monthly credits.
- *   Supports FLUX.1-schnell, Stable Diffusion 3.5, and many open-source models.
+ * Hugging Face: Uses HUGGINGFACE_API_KEY with the official @huggingface/inference SDK.
+ *   The SDK routes through router.huggingface.co and automatically selects the best
+ *   provider serving the requested model. Free tier with $0.10 monthly credits.
  * OpenRouter: Uses OPENROUTER_API_KEY. Supports FLUX, DALL-E, Seedream.
  */
 
 import axios from "axios";
+import { InferenceClient } from "@huggingface/inference";
 
 // ============================================================================
 // Types
@@ -64,14 +66,15 @@ export const IMAGE_MODELS = {
 } as const;
 
 // ============================================================================
-// Hugging Face Inference API (Free Tier)
+// Hugging Face Inference Providers (Free Tier)
 // ============================================================================
 
-const HF_API_BASE = "https://api-inference.huggingface.co";
-
 /**
- * Generate an image using Hugging Face Inference API free tier.
+ * Generate an image using Hugging Face Inference Providers via the official SDK.
  * Requires HUGGINGFACE_API_KEY env var.
+ *
+ * The SDK routes through router.huggingface.co and automatically picks the fastest
+ * available provider for the requested model (provider="auto").
  *
  * Free tier: $0.10/month credits (no credit card needed).
  * Sign up: https://huggingface.co/join
@@ -92,100 +95,62 @@ async function generateWithHuggingFace(
   }
 
   const model = options.model || IMAGE_MODELS.hfFluxSchnell;
-  const hfModel = model.startsWith("black-forest-labs/") || model.startsWith("stabilityai/")
-    ? model
-    : IMAGE_MODELS.hfFluxSchnell;
 
   try {
-    const response = await axios.post(
-      `${HF_API_BASE}/models/${hfModel}`,
-      { inputs: prompt },
+    const client = new InferenceClient(apiKey);
+    const blob = await client.textToImage(
       {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "X-Wait-For-Model": "true",
-          "X-Use-Cache": "false",
-        },
-        responseType: "arraybuffer",
-        timeout: 60000,
-        validateStatus: (status) => status < 500,
+        model,
+        inputs: prompt,
       },
+      { outputType: "blob" },
     );
 
-    const contentType = String(response.headers["content-type"] || "");
-
-    // JSON response = error
-    if (contentType.includes("application/json") || contentType.includes("text/")) {
-      const bodyText = Buffer.from(response.data).toString("utf-8");
-      let errorMsg = "Hugging Face image generation failed";
-
-      try {
-        const body = JSON.parse(bodyText);
-        errorMsg = body.error || body.errors?.[0]?.message || JSON.stringify(body).substring(0, 300);
-      } catch {
-        errorMsg = bodyText.substring(0, 300);
-      }
-
-      throw new Error(`Hugging Face error: ${errorMsg}`);
-    }
-
-    // 503 = model is loading
-    if (response.status === 503) {
+    if (!blob || blob.size < 100) {
       throw new Error(
-        "Hugging Face model is loading. Please try again in 30 seconds.",
+        "Hugging Face returned an image that appears too small to be valid",
       );
     }
 
-    // Must be an image now
-    const imageBuffer = Buffer.from(response.data);
-
-    if (imageBuffer.length < 100) {
-      throw new Error("Hugging Face returned an image that appears too small to be valid");
-    }
-
+    const arrayBuffer = await blob.arrayBuffer();
+    const imageBuffer = Buffer.from(arrayBuffer);
     const b64Json = imageBuffer.toString("base64");
-    const mediaType = contentType.includes("jpeg") || contentType.includes("jpg")
-      ? "image/jpeg"
-      : contentType.includes("webp")
-        ? "image/webp"
-        : "image/png";
+    const mediaType = blob.type || "image/png";
 
     return {
       b64Json,
       mediaType,
-      model: hfModel,
+      model,
       provider: "huggingface",
       usage: { totalTokens: 0, cost: 0 },
     };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      const bodyText = error.response?.data
-        ? Buffer.from(error.response.data).toString("utf-8")
-        : "";
+    const message = error instanceof Error ? error.message : String(error);
+    const lower = message.toLowerCase();
 
-      let errorMsg = "Hugging Face image generation failed";
-      try {
-        const body = JSON.parse(bodyText);
-        errorMsg = body.error || body.errors?.[0]?.message || errorMsg;
-      } catch {
-        errorMsg = bodyText.substring(0, 200) || errorMsg;
-      }
-
-      if (status === 401 || status === 403) {
-        throw new Error("Invalid Hugging Face API token. Check your HUGGINGFACE_API_KEY.");
-      }
-      if (status === 429) {
-        throw new Error("Hugging Face rate limit reached. Free tier: $0.10/month credits.");
-      }
-
-      throw new Error(`Hugging Face error (${status}): ${errorMsg}`);
+    if (
+      lower.includes("401") ||
+      lower.includes("unauthorized") ||
+      lower.includes("403") ||
+      lower.includes("forbidden") ||
+      lower.includes("invalid token")
+    ) {
+      throw new Error(
+        "Invalid Hugging Face API token. Check your HUGGINGFACE_API_KEY.",
+      );
+    }
+    if (
+      lower.includes("429") ||
+      lower.includes("rate limit") ||
+      lower.includes("credit") ||
+      lower.includes("billing")
+    ) {
+      throw new Error(
+        "Hugging Face rate limit or insufficient credits. Free tier: $0.10/month credits.",
+      );
     }
 
-    throw new Error(
-      error instanceof Error ? error.message : "Hugging Face image generation failed",
-    );
+    throw new Error(`Hugging Face error: ${message}`);
   }
 }
 
@@ -295,7 +260,7 @@ export async function generateImage(
     return generateWithOpenRouter(prompt, options);
   }
 
-  // Use Hugging Face only (remove OpenRouter fallback)
+  // Use Hugging Face only (no OpenRouter fallback)
   return generateWithHuggingFace(prompt, options);
 }
 

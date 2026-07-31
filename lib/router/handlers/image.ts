@@ -78,7 +78,9 @@ export async function imageHandler(
   if (mode === "generate") {
     try {
       const modelMap: Record<string, string> = {
-        flux: IMAGE_MODELS.flux2Klein,
+        flux: IMAGE_MODELS.hfFluxSchnell,
+        "flux-schnell": IMAGE_MODELS.hfFluxSchnell,
+        "flux-dev": IMAGE_MODELS.hfSd35Large,
         "flux-pro": IMAGE_MODELS.flux2Pro,
         "flux-flex": IMAGE_MODELS.flux2Flex,
         "flux-klein": IMAGE_MODELS.flux2Klein,
@@ -88,9 +90,16 @@ export async function imageHandler(
         recraft: IMAGE_MODELS.recraft,
       };
 
+      // Default model depends on the provider:
+      // Hugging Face uses FLUX.1-schnell, OpenRouter uses flux.2-klein-4b
+      const defaultModel =
+        provider === "openrouter"
+          ? IMAGE_MODELS.flux2Klein
+          : IMAGE_MODELS.hfFluxSchnell;
+
       const selectedModel = imageModel
         ? modelMap[imageModel.toLowerCase()] || imageModel
-        : IMAGE_MODELS.flux2Klein;
+        : defaultModel;
 
       // Build a detailed prompt for better image generation
       const detailedPrompt = [

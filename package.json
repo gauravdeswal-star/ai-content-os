@@ -16,6 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1099.0",
     "@google/generative-ai": "^0.24.0",
+    "@huggingface/inference": "^4.13.23",
     "@prisma/client": "^6.6.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",

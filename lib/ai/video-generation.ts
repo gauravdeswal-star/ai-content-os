@@ -9,6 +9,7 @@
  */
 
 import axios from "axios";
+import { InferenceClient } from "@huggingface/inference";
 
 // ============================================================================
 // Types
@@ -58,10 +59,8 @@ export const VIDEO_MODELS = {
 } as const;
 
 // ============================================================================
-// Hugging Face Inference API (Free Tier)
+// Hugging Face Inference Providers (Free Tier)
 // ============================================================================
-
-const HF_API_BASE = "https://api-inference.huggingface.co";
 
 /**
  * Get the Hugging Face API key from environment variables.
@@ -81,8 +80,11 @@ function getHfApiKey(): string {
 }
 
 /**
- * Generate a video using Hugging Face Inference API free tier.
+ * Generate a video using Hugging Face Inference Providers via the official SDK.
  * Uses open-source models like Wan2.1 and Hunyuan Video.
+ *
+ * The SDK routes through router.huggingface.co and automatically picks the fastest
+ * available provider for the requested model (provider="auto").
  *
  * @param prompt - Text description of the video
  * @param options - Video options (model, duration, etc.)
@@ -97,95 +99,62 @@ async function generateWithHuggingFace(
   const taskId = `hf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
   try {
-    // Hugging Face returns the video file directly as binary when it's ready
-    // For slower models, it returns a 503 with estimated time
-    const response = await axios.post(
-      `${HF_API_BASE}/models/${model}`,
-      { inputs: prompt },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "X-Wait-For-Model": "true",
-          "X-Use-Cache": "false",
-        },
-        responseType: "arraybuffer",
-        timeout: 120000, // 2 minutes for video generation
-        validateStatus: (status) => status < 500, // Don't throw on 503
-      },
-    );
+    const client = new InferenceClient(apiKey);
+    const blob = await client.textToVideo({
+      model,
+      inputs: prompt,
+    });
 
-    const status = response.status;
-
-    // 503 means the model is loading — return as pending
-    if (status === 503) {
-      const estimatedTime = response.headers["x-estimated-time"]
-        ? parseInt(response.headers["x-estimated-time"] as string, 10)
-        : 60;
-
-      return {
-        videoUrl: "",
-        taskId,
-        status: "pending",
-        model,
-        cost: 0,
-      };
+    if (!blob) {
+      throw new Error("No video data returned from Hugging Face");
     }
 
-    // Successful response — video binary
-    if (status === 200) {
-      const videoBuffer = Buffer.from(response.data);
-      const base64 = videoBuffer.toString("base64");
-      const contentType =
-        response.headers["content-type"]?.toString() || "video/mp4";
+    const arrayBuffer = await blob.arrayBuffer();
+    const videoBuffer = Buffer.from(arrayBuffer);
+    const base64 = videoBuffer.toString("base64");
+    const contentType = blob.type || "video/mp4";
 
-      // Create a data URL for the video
-      // For production, you'd upload this to Cloudinary/S3
-      const dataUrl = `data:${contentType};base64,${base64}`;
+    // Create a data URL for the video
+    // For production, you'd upload this to Cloudinary/S3
+    const dataUrl = `data:${contentType};base64,${base64}`;
 
-      return {
-        videoUrl: dataUrl,
-        taskId,
-        status: "completed",
-        model,
-        cost: 0, // Free tier!
-      };
-    }
-
-    throw new Error(
-      `Hugging Face API returned unexpected status: ${status}`,
-    );
+    return {
+      videoUrl: dataUrl,
+      taskId,
+      status: "completed",
+      model,
+      cost: 0, // Free tier!
+    };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      let errorMessage = "Hugging Face video generation failed";
+    if (error instanceof Error) {
+      const message = error.message;
+      const lower = message.toLowerCase();
 
-      try {
-        const errorBody = JSON.parse(
-          Buffer.from(error.response?.data || "{}").toString(),
-        );
-        errorMessage = errorBody.error || errorMessage;
-      } catch {}
-
-      if (status === 401 || status === 403) {
+      if (
+        lower.includes("401") ||
+        lower.includes("unauthorized") ||
+        lower.includes("403") ||
+        lower.includes("forbidden") ||
+        lower.includes("invalid token")
+      ) {
         throw new Error(
           "Invalid Hugging Face API token. Check your HUGGINGFACE_API_KEY.\n" +
           "Get a valid token at: https://huggingface.co/settings/tokens",
         );
       }
-      if (status === 429) {
+      if (
+        lower.includes("429") ||
+        lower.includes("rate limit") ||
+        lower.includes("credit") ||
+        lower.includes("billing")
+      ) {
         throw new Error(
-          "Hugging Face rate limit reached. Free tier: $0.10/month credits.\n" +
+          "Hugging Face rate limit or insufficient credits. Free tier: $0.10/month credits.\n" +
           "Wait a bit or upgrade at: https://huggingface.co/pricing",
         );
       }
-      if (status === 400) {
-        throw new Error(
-          `Hugging Face rejected the request: ${errorMessage}`,
-        );
-      }
 
-      throw new Error(`Hugging Face error (${status}): ${errorMessage}`);
+      throw new Error(`Hugging Face error: ${message}`);
     }
 
     throw new Error(

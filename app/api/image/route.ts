@@ -45,8 +45,14 @@ export async function POST(
     // ----- MODE: GENERATE (actual image) -----
     if (mode === "generate") {
       try {
-        const imageModel = body.model || IMAGE_MODELS.flux2Klein;
         const provider = body.provider || "huggingface";
+        // Default model depends on the provider:
+        // Hugging Face uses FLUX.1-schnell, OpenRouter uses flux.2-klein-4b
+        const imageModel =
+          body.model ||
+          (provider === "openrouter"
+            ? IMAGE_MODELS.flux2Klein
+            : IMAGE_MODELS.hfFluxSchnell);
 
         const result = await generateImage(params.prompt, {
           model: imageModel,
