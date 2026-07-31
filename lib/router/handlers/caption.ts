@@ -37,6 +37,8 @@ export async function captionHandler(
   const includeEmojis = options["emojis"] !== "no";
   const includeHashtags = options["hashtags"] !== "no";
   const includeSeo = options["seo"] === "yes";
+  const includeViralKeywords =
+    (options["viral"] || options["keywords"] || "yes").toLowerCase() !== "no";
   const cta = options["cta"] || options["calltoaction"];
 
   const startTime = Date.now();
@@ -49,6 +51,7 @@ export async function captionHandler(
       includeEmojis,
       includeHashtags,
       includeSeo,
+      includeViralKeywords,
       cta,
     }),
     {
@@ -69,6 +72,12 @@ export async function captionHandler(
     status: "success",
   });
 
+  // Extract viral keywords from the generated caption (best-effort parse)
+  const viralKeywords = extractSectionKeywords(
+    response.content,
+    /\*{1,2}Viral Keywords\*{0,2}:?\s*/i,
+  );
+
   return {
     success: true,
     message: response.content,
@@ -78,8 +87,30 @@ export async function captionHandler(
       cta: cta || "",
       hashtags: [],
       seoKeywords: [],
+      viralKeywords,
       fullCaption: response.content,
     },
     error: null,
   };
+}
+
+/**
+ * Best-effort extraction of a comma-separated keyword list from a generated
+ * response section (e.g. "**Viral Keywords:** word1, word2, ...").
+ */
+function extractSectionKeywords(content: string, pattern: RegExp): string[] {
+  const match = content.match(pattern);
+  if (!match) return [];
+
+  const section = content
+    .slice(match.index! + match[0].length)
+    .split(/\n{2,}|\*{1,2}[A-Z]/)
+    .find((block) => block.trim().length > 0);
+  if (!section) return [];
+
+  return section
+    .split(/[,\n]/)
+    .map((kw) => kw.trim().replace(/^[#*\-\d\.]+\s*/, ""))
+    .filter((kw) => kw.length > 1 && kw.length < 60)
+    .slice(0, 15);
 }

@@ -128,6 +128,7 @@ export interface CaptionParams {
   includeHashtags?: boolean;
   includeEmojis?: boolean;
   includeSeo?: boolean;
+  includeViralKeywords?: boolean;
   cta?: string;
 }
 
@@ -137,6 +138,7 @@ export interface CaptionResult {
   cta: string;
   hashtags: string[];
   seoKeywords: string[];
+  viralKeywords: string[];
   fullCaption: string;
 }
 

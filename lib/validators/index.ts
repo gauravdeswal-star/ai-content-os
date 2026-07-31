@@ -84,6 +84,11 @@ export const captionSchema = z.object({
     .transform((v) => v === "yes" || v === "true")
     .optional()
     .default(false),
+  includeViralKeywords: z
+    .enum(["yes", "no", "true", "false"])
+    .transform((v) => v === "yes" || v === "true")
+    .optional()
+    .default(true),
   cta: z.string().max(200).optional(),
 });
 

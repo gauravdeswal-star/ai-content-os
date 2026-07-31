@@ -8,15 +8,17 @@ import type { CaptionParams } from "@/types";
  * Build the system prompt for caption generation.
  */
 export function getCaptionSystemPrompt(): string {
-  return `You are an expert social media copywriter who creates high-engagement captions.
-You understand platform-specific best practices, hook structures, and conversion optimization.
+  return `You are an expert social media copywriter who creates high-engagement, viral-ready captions.
+You understand platform-specific best practices, hook structures, trending keywords, and conversion optimization.
 
 Rules:
 - Write hooks that stop the scroll
-- Use power words and emotional triggers
+- Use power words, emotional triggers, and curiosity gaps
+- Weave in VIRAL KEYWORDS (high-volume, trending, searchable terms) naturally so the post gets discovered
 - Adapt length and style to the platform
 - Include strategic line breaks for readability
-- End with a clear call to action`;
+- End with a clear call to action
+- Always include a dedicated "Viral Keywords" section listing the strongest keywords used`;
 }
 
 /**
@@ -42,6 +44,9 @@ export function buildCaptionPrompt(params: CaptionParams): string {
   else features.push("❌ No hashtags");
   if (params.includeSeo) features.push("✅ Include SEO keywords naturally");
   else features.push("❌ No SEO keywords");
+  if (params.includeViralKeywords !== false)
+    features.push("✅ Include 10-12 VIRAL keywords (trending, high-volume, emotional power words) woven naturally into the copy");
+  else features.push("❌ No viral keywords");
 
   lines.push("");
   lines.push("Features:");
@@ -53,9 +58,12 @@ export function buildCaptionPrompt(params: CaptionParams): string {
 **Hook:** [Attention-grabbing opening line]
 
 **Body:**
-[2-3 paragraphs of engaging content]
+[2-3 paragraphs of engaging content that naturally weaves in viral keywords]
 
 **Call to Action:** [Clear CTA]
+
+**Viral Keywords:**
+[10-12 comma-separated viral keywords + power words used in the caption]
 
 **Hashtags:**
 [Relevant hashtags]
