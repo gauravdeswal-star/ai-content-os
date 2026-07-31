@@ -8,7 +8,7 @@
  * https://your-domain.com/api/telegram
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import type { ApiResponse } from "@/types";
 import { telegramUpdateSchema } from "@/lib/validators";
 import { processUpdate, initializeRouter } from "@/lib/telegram/webhook";
@@ -100,10 +100,15 @@ export async function POST(
       );
     }
 
-    // Fire-and-forget: acknowledge Telegram immediately so it never re-sends
-    // the update while the (potentially slow) image generation runs.
-    processUpdate(update).catch((err) => {
-      console.error("[Telegram] Background processing failed:", err);
+    // Acknowledge Telegram immediately so it never re-sends the update while
+    // the (potentially slow) image generation runs. Use Next.js `after()` so
+    // the work reliably completes on serverless platforms (e.g. Vercel).
+    after(async () => {
+      try {
+        await processUpdate(update);
+      } catch (err) {
+        console.error("[Telegram] Background processing failed:", err);
+      }
     });
 
     return NextResponse.json(
