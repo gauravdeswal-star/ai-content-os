@@ -145,7 +145,21 @@ export async function processUpdate(
       const mediaType = (data.mediaType as string) || "image/png";
       const caption = response.message.substring(0, 200); // Truncate for caption
       await sendChatAction(chatId, "upload_photo");
-      await sendPhoto(chatId, data.b64Json as string, mediaType, caption);
+
+      // Send every generated image (HF now generates up to 2 in parallel)
+      const images = Array.isArray(data.images)
+        ? (data.images as { b64Json: string; mediaType: string }[])
+        : [{ b64Json: data.b64Json as string, mediaType }];
+
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i]!;
+        await sendPhoto(
+          chatId,
+          img.b64Json,
+          img.mediaType,
+          i === 0 ? caption : undefined,
+        );
+      }
     } else {
       await sendCommandResponse(chatId, response);
     }

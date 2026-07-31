@@ -35,6 +35,8 @@ export interface ImageGenerationResult {
   b64Json: string;
   /** Media type */
   mediaType: string;
+  /** All generated images when n > 1 (parallel generation) */
+  images?: { b64Json: string; mediaType: string }[];
   /** Model used */
   model: string;
   /** Provider used */
@@ -95,31 +97,53 @@ async function generateWithHuggingFace(
   }
 
   const model = options.model || IMAGE_MODELS.hfFluxSchnell;
+  const n = Math.min(Math.max(options.n || 1, 1), 2);
 
   try {
     const client = new InferenceClient(apiKey);
-    const blob = await client.textToImage(
-      {
-        model,
-        inputs: prompt,
-      },
-      { outputType: "blob" },
+
+    // Generate all images in parallel so N images take ~the same time as 1
+    const settled = await Promise.allSettled(
+      Array.from({ length: n }, () =>
+        client.textToImage(
+          {
+            model,
+            inputs: prompt,
+          },
+          { outputType: "blob" },
+        ),
+      ),
     );
 
-    if (!blob || blob.size < 100) {
+    const images: { b64Json: string; mediaType: string }[] = [];
+    for (const result of settled) {
+      if (result.status !== "fulfilled") continue;
+      const blob = result.value;
+      if (!blob || blob.size < 100) continue;
+      const arrayBuffer = await blob.arrayBuffer();
+      const imageBuffer = Buffer.from(arrayBuffer);
+      images.push({
+        b64Json: imageBuffer.toString("base64"),
+        mediaType: blob.type || "image/png",
+      });
+    }
+
+    if (images.length === 0) {
+      const rejected = settled.find(
+        (r) => r.status === "rejected",
+      ) as PromiseRejectedResult | undefined;
+      const reason = rejected?.reason;
       throw new Error(
-        "Hugging Face returned an image that appears too small to be valid",
+        reason instanceof Error
+          ? reason.message
+          : "Hugging Face returned no valid images",
       );
     }
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const imageBuffer = Buffer.from(arrayBuffer);
-    const b64Json = imageBuffer.toString("base64");
-    const mediaType = blob.type || "image/png";
-
     return {
-      b64Json,
-      mediaType,
+      b64Json: images[0]!.b64Json,
+      mediaType: images[0]!.mediaType,
+      images,
       model,
       provider: "huggingface",
       usage: { totalTokens: 0, cost: 0 },
@@ -210,12 +234,19 @@ async function generateWithOpenRouter(
     throw new Error("No image data returned from OpenRouter");
   }
 
+  const images: { b64Json: string; mediaType: string }[] = data.data.map(
+    (img: { b64_json: string; media_type?: string }) => ({
+      b64Json: img.b64_json,
+      mediaType: img.media_type || `image/${outputFormat}`,
+    }),
+  );
   const imageData = data.data[0];
   const cost = MODEL_PRICING[model] || 0.03;
 
   return {
     b64Json: imageData.b64_json,
     mediaType: imageData.media_type || `image/${outputFormat}`,
+    images,
     model: data.model || model,
     provider: "openrouter",
     usage: {

@@ -158,6 +158,9 @@ export async function imageHandler(
           originalPrompt: prompt,
           b64Json: result.b64Json,
           mediaType: result.mediaType,
+          images: result.images || [
+            { b64Json: result.b64Json, mediaType: result.mediaType },
+          ],
           model: result.model,
           aspectRatio,
           style: style || "",
