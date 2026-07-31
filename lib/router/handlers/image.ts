@@ -62,7 +62,7 @@ export async function imageHandler(
     options["ratio"] || options["r"] || options["aspectratio"] || "1:1";
   const negativePrompt = options["negative"] || options["neg"] || options["avoid"];
   const imageModel = options["model"];
-  const count = parseInt(options["count"] || options["n"] || "1", 10);
+  const count = Math.min(parseInt(options["count"] || options["n"] || "2", 10) || 2, 2);
   // Default to Hugging Face (free tier via HUGGINGFACE_API_KEY)
   // Use openrouter only if explicitly requested
   const rawProvider = (options["provider"] || options["p"] || "huggingface").toLowerCase();
@@ -113,7 +113,7 @@ export async function imageHandler(
       const result = await generateImage(detailedPrompt, {
         model: selectedModel,
         aspectRatio,
-        n: Math.min(count, 4),
+        n: count,
         provider: provider as "huggingface" | "openrouter",
       });
 

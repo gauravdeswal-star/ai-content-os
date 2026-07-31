@@ -57,7 +57,7 @@ export async function POST(
         const result = await generateImage(params.prompt, {
           model: imageModel,
           aspectRatio: params.aspectRatio,
-          n: body.count || 1,
+          n: Math.min(parseInt(body.count || "2", 10) || 2, 2),
           provider: provider as "huggingface" | "openrouter",
         });
 

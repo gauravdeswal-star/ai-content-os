@@ -20,6 +20,26 @@ export const dynamic = "force-dynamic";
 initializeRouter();
 
 /**
+ * Tracks recently-processed update IDs so Telegram retries don't cause
+ * duplicate generations (e.g. multiple images for one /image command).
+ * Evicts entries after 10 minutes.
+ */
+const processedUpdateIds = new Map<number, number>(); // update_id -> timestamp (ms)
+const DEDUPE_TTL_MS = 10 * 60 * 1000;
+
+function isDuplicateUpdate(updateId: number): boolean {
+  const now = Date.now();
+  // Clean up stale entries
+  for (const [id, ts] of processedUpdateIds) {
+    if (now - ts > DEDUPE_TTL_MS) processedUpdateIds.delete(id);
+  }
+
+  if (processedUpdateIds.has(updateId)) return true;
+  processedUpdateIds.set(updateId, now);
+  return false;
+}
+
+/**
  * POST /api/telegram
  * Receives webhook updates from Telegram.
  */
@@ -64,11 +84,37 @@ export async function POST(
     }
 
     // Process the update
-    const result = await processUpdate(parseResult.data);
+    const update = parseResult.data;
 
-    // Always return 200 OK to Telegram, even on errors.
-    // Telegram will retry non-200 responses indefinitely, causing spam.
-    return NextResponse.json(result, { status: 200 });
+    // Skip duplicate deliveries (Telegram retries slow webhooks) to avoid
+    // generating/sending multiple images for a single command.
+    if (isDuplicateUpdate(update.update_id)) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Duplicate update skipped",
+          data: null,
+          error: null,
+        },
+        { status: 200 },
+      );
+    }
+
+    // Fire-and-forget: acknowledge Telegram immediately so it never re-sends
+    // the update while the (potentially slow) image generation runs.
+    processUpdate(update).catch((err) => {
+      console.error("[Telegram] Background processing failed:", err);
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Update received, processing",
+        data: null,
+        error: null,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
