@@ -108,6 +108,22 @@ export async function POST(
         await processUpdate(update);
       } catch (err) {
         console.error("[Telegram] Background processing failed:", err);
+        // Fail loudly: tell the user something went wrong instead of silence
+        const chatId = update.message?.chat?.id;
+        if (chatId) {
+          try {
+            const { sendMessage } = await import("@/lib/telegram/bot");
+            const message =
+              err instanceof Error ? err.message : "Unknown error";
+            await sendMessage(
+              chatId,
+              `❌ <b>Something went wrong processing your request.</b>\n\n${message}\n\nPlease try again.`,
+              { parseMode: "HTML" },
+            );
+          } catch (notifyErr) {
+            console.error("[Telegram] Failed to notify user of error:", notifyErr);
+          }
+        }
       }
     });
 

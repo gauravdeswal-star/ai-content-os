@@ -8,6 +8,30 @@ import type { ApiResponse } from "@/types";
 
 const TELEGRAM_API = "https://api.telegram.org/bot";
 
+/** Telegram's hard limit for a single message */
+const MAX_MESSAGE_LENGTH = 4000;
+
+/**
+ * Split long text into chunks that fit Telegram's message size limit.
+ * Prefers to split on newlines so code blocks / formatting survive.
+ */
+function chunkText(text: string, maxLength = MAX_MESSAGE_LENGTH): string[] {
+  if (text.length <= maxLength) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > maxLength) {
+    let splitAt = remaining.lastIndexOf("\n", maxLength);
+    if (splitAt <= 0) splitAt = maxLength;
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt);
+  }
+
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
 /**
  * Get the Telegram Bot API base URL.
  */
@@ -40,18 +64,23 @@ export async function sendMessage(
 ): Promise<void> {
   const { parseMode = "HTML", replyToMessageId, disableWebPagePreview, disableNotification } = options;
 
-  try {
-    await axios.post(`${getApiUrl()}/sendMessage`, {
-      chat_id: chatId,
-      text,
-      parse_mode: parseMode,
-      reply_to_message_id: replyToMessageId,
-      disable_web_page_preview: disableWebPagePreview ?? true,
-      disable_notification: disableNotification,
-    });
-  } catch (error) {
-    console.error("[Telegram] Failed to send message:", error);
-    throw new Error("Failed to send Telegram message");
+  // Long messages (e.g. generated scripts) must be split to fit Telegram's limit
+  const chunks = chunkText(text);
+
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      await axios.post(`${getApiUrl()}/sendMessage`, {
+        chat_id: chatId,
+        text: chunks[i],
+        parse_mode: parseMode,
+        reply_to_message_id: i === 0 ? replyToMessageId : undefined,
+        disable_web_page_preview: disableWebPagePreview ?? true,
+        disable_notification: disableNotification,
+      });
+    } catch (error) {
+      console.error("[Telegram] Failed to send message:", error);
+      throw new Error("Failed to send Telegram message");
+    }
   }
 }
 
@@ -203,19 +232,15 @@ export async function sendCommandResponse(
  */
 function formatApiResponse(response: ApiResponse<unknown>): string {
   if (response.success) {
-    return `
-✅ <b>Success</b>
-
-${response.message}
-
-<code>${JSON.stringify(response.data, null, 2)}</code>
-    `.trim();
+    // Send the formatted message only — the raw data JSON dump can push
+    // long responses (e.g. scripts) over Telegram's 4096-char limit.
+    return response.message?.trim() || "✅ Success";
   }
 
   return `
 ❌ <b>Error</b>
 
-${response.error?.message || response.message}
+${response.error?.message || response.message || "Unknown error"}
 
 <code>Error code: ${response.error?.code || "UNKNOWN"}</code>
   `.trim();
